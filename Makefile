@@ -20,7 +20,7 @@ run.app:
 	trump-app
 
 run.db:
-	docker run --rm --name trump-postgres-container \
+	docker run -d --rm --name trump-postgres-container \
 	--network trumpnetwork \
 	-d \
 	-e POSTGRES_USER=postgres \
