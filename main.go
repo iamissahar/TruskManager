@@ -15,11 +15,18 @@ import (
 var (
 	db          *sql.DB
 	cachedUsers = map[int]struct{}{}
+	bs          *fmtogram.BasicSettings
 )
 
 type t struct {
 	name string
 	id   int
+}
+
+func errorWarning(err error) {
+	msg := fmtogram.NewMessage()
+	msg.WriteString(fmt.Sprintf("We've got an error: %s", err))
+	bs.Send(msg, owner)
 }
 
 func getReqAndResp(get fmtogram.IGet) {
@@ -31,20 +38,28 @@ func prepareGif(msg *fmtogram.Message, lang string, textcode int) {
 	var err error
 	anim := fmtogram.NewAnimation()
 	if err = anim.WriteAnimationInternet(higif); err != nil {
-		log.Printf("prepareGif (1): %s", err)
+		err = fmt.Errorf("prepareGif (1): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 	if err = msg.WriteAnimation(anim); err != nil {
-		log.Printf("prepareGif (2): %s", err)
+		err = fmt.Errorf("prepareGif (2): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 }
 
 func prepareText(msg *fmtogram.Message, lang string, textcode int) {
 	var err error
 	if err = msg.WriteString(text[lang][textcode]); err != nil {
-		log.Printf("prepareText (1): %s", err)
+		err = fmt.Errorf("prepareText (1): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 	if err = msg.WriteParseMode(fmtogram.HTML); err != nil {
-		log.Printf("prepareText (2): %s", err)
+		err = fmt.Errorf("prepareText (2): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 }
 
@@ -55,17 +70,21 @@ func addNewUser(userID int, lang string) error {
 	)
 	row := db.QueryRow("SELECT COUNT(*) FROM Users WHERE id = $1", userID)
 	if err = row.Scan(&res); err != nil {
-		log.Printf("addNewUser (1): %s", err)
+		err = fmt.Errorf("addNewUser (1): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	} else if res == 0 {
 		_, err = db.Exec("INSERT INTO Users(id, lang) VALUES ($1, $2)", userID, lang)
 		if err != nil {
-			log.Printf("addNewUser (2): %s", err)
+			err = fmt.Errorf("addNewUser (2): %s", err)
+			log.Print(err)
+			errorWarning(err)
 		}
 	}
 	return err
 }
 
-func greetings(bs *fmtogram.BasicSettings, lang string, userID int) error {
+func greetings(lang string, userID int) error {
 	var (
 		actions   = []func(*fmtogram.Message, string, int){prepareText, prepareGif, prepareText}
 		textcodes = []int{hello1, 0, hello2}
@@ -83,7 +102,9 @@ func greetings(bs *fmtogram.BasicSettings, lang string, userID int) error {
 			get := msg.GetResults()
 			f(msg, lang, textcodes[i])
 			if err = bs.Send(msg, userID); err != nil {
-				log.Printf("greetings: %s", err)
+				err = fmt.Errorf("greetings: %s", err)
+				log.Print(err)
+				errorWarning(err)
 			}
 			getReqAndResp(get)
 		}
@@ -105,7 +126,9 @@ func taskExists(taskID string, userID int) (bool, error) {
 			AND Relations.task_id = $2
 			AND Tasks.done = 0`, userID, taskID)
 	if err = row.Scan(&amount); err != nil {
-		log.Printf("taskExists: %s", err)
+		err = fmt.Errorf("taskExists: %s", err)
+		log.Print(err)
+		errorWarning(err)
 	} else if amount > 0 {
 		res = true
 	}
@@ -122,11 +145,15 @@ func updateDB(taskID string, userID int) error {
 				AND Tasks.id = $1 
 				AND Relations.user_id = $2`, taskID, userID)
 	if err != nil {
-		log.Printf("updateDB (1): %s", err)
+		err = fmt.Errorf("updateDB (1): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 	err = db.QueryRow("SELECT allowed_amount_of_letters FROM Users WHERE id = $1", userID).Scan(&amount)
 	if err != nil {
-		log.Printf("updateDB (2): %s", err)
+		err = fmt.Errorf("updateDB (2): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	} else {
 		if amount == 10 {
 			amount = 25
@@ -138,13 +165,15 @@ func updateDB(taskID string, userID int) error {
 			SET allowed_amount_of_letters = $1
 			WHERE id = $2`, amount, userID)
 		if err != nil {
-			log.Printf("updateDB (3): %s", err)
+			err = fmt.Errorf("updateDB (3): %s", err)
+			log.Print(err)
+			errorWarning(err)
 		}
 	}
 	return err
 }
 
-func taskIsDone(bs *fmtogram.BasicSettings, lang, taskID string, userID int) error {
+func taskIsDone(lang, taskID string, userID int) error {
 	updateDB(taskID, userID)
 	msg := fmtogram.NewMessage()
 	get := msg.GetResults()
@@ -153,48 +182,72 @@ func taskIsDone(bs *fmtogram.BasicSettings, lang, taskID string, userID int) err
 		if len(tasks) > 0 {
 			anim := fmtogram.NewAnimation()
 			if err = anim.WriteAnimationInternet(trumpwining[rand.Intn(len(trumpwining))]); err != nil {
-				log.Printf("taskIsDone (1): %s", err)
+				err = fmt.Errorf("taskIsDone (1): %s", err)
+				log.Print(err)
+				errorWarning(err)
 			}
 			if err = msg.WriteAnimation(anim); err != nil {
-				log.Printf("taskIsDone (2): %s", err)
+				err = fmt.Errorf("taskIsDone (2): %s", err)
+				log.Print(err)
+				errorWarning(err)
 			}
 			if err = msg.WriteString(text[lang][success]); err != nil {
-				log.Printf("taskIsDone (3): %s", err)
+				err = fmt.Errorf("taskIsDone (3): %s", err)
+				log.Print(err)
+				errorWarning(err)
 			}
 			if err = msg.WriteParseMode(fmtogram.HTML); err != nil {
-				log.Printf("taskIsDone (4): %s", err)
+				err = fmt.Errorf("taskIsDone (4): %s", err)
+				log.Print(err)
+				errorWarning(err)
 			}
 			if err = bs.Send(msg, userID); err != nil {
-				log.Printf("taskIsDone (5): %s", err)
+				err = fmt.Errorf("taskIsDone (5): %s", err)
+				log.Print(err)
+				errorWarning(err)
 			}
 			getReqAndResp(get)
 
-			if err = createForm(bs, fmtogram.NewMessage(), text[lang][taskadded], tasks, userID); err != nil {
-				log.Printf("taskIsDone (6): %s", err)
+			if err = createForm(fmtogram.NewMessage(), text[lang][taskadded], tasks, userID); err != nil {
+				err = fmt.Errorf("taskIsDone (6): %s", err)
+				log.Print(err)
+				errorWarning(err)
 			}
 		} else {
 			anim := fmtogram.NewAnimation()
 			if err = anim.WriteAnimationInternet(trumpwining[rand.Intn(len(trumpwining))]); err != nil {
-				log.Printf("taskIsDone (7): %s", err)
+				err = fmt.Errorf("taskIsDone (7): %s", err)
+				log.Print(err)
+				errorWarning(err)
 			}
 			if err = msg.WriteAnimation(anim); err != nil {
-				log.Printf("taskIsDone (8): %s", err)
+				err = fmt.Errorf("taskIsDone (8): %s", err)
+				log.Print(err)
+				errorWarning(err)
 			}
 			if err = bs.Send(msg, userID); err != nil {
-				log.Printf("taskIsDone (9): %s", err)
+				err = fmt.Errorf("taskIsDone (9): %s", err)
+				log.Print(err)
+				errorWarning(err)
 			}
 			getReqAndResp(get)
 
 			msg = fmtogram.NewMessage()
 			get = msg.GetResults()
 			if err = msg.WriteString(text[lang][congrat]); err != nil {
-				log.Printf("taskIsDone (10): %s", err)
+				err = fmt.Errorf("taskIsDone (10): %s", err)
+				log.Print(err)
+				errorWarning(err)
 			}
 			if err = msg.WriteParseMode(fmtogram.HTML); err != nil {
-				log.Printf("taskIsDone (11): %s", err)
+				err = fmt.Errorf("taskIsDone (11): %s", err)
+				log.Print(err)
+				errorWarning(err)
 			}
 			if err = bs.Send(msg, userID); err != nil {
-				log.Printf("taskIsDone (12): %s", err)
+				err = fmt.Errorf("taskIsDone (12): %s", err)
+				log.Print(err)
+				errorWarning(err)
 			}
 			getReqAndResp(get)
 		}
@@ -208,10 +261,24 @@ func addTask(taskname string, userID int) (int, error) {
 		err    error
 	)
 	row := db.QueryRow("SELECT nextval('tasks_id_seq')")
-	if err = row.Scan(&taskID); err == nil {
+	err = row.Scan(&taskID)
+	if err != nil {
+		err = fmt.Errorf("addTask (1): %s", err)
+		log.Print(err)
+		errorWarning(err)
+	} else {
 		_, err = db.Exec("INSERT INTO Tasks (id, name) VALUES ($1, $2)", taskID, taskname)
-		if err == nil {
+		if err != nil {
+			err = fmt.Errorf("addTask (2): %s", err)
+			log.Print(err)
+			errorWarning(err)
+		} else {
 			_, err = db.Exec("INSERT INTO Relations (task_id, user_id) VALUES ($1, $2)", taskID, userID)
+			if err != nil {
+				err = fmt.Errorf("addTask (3): %s", err)
+				log.Print(err)
+				errorWarning(err)
+			}
 		}
 	}
 	return taskID, err
@@ -229,11 +296,17 @@ func getUserTasks(userID int) ([]t, error) {
 		WHERE Relations.user_id = $1
 		AND Tasks.done = 0 
 		GROUP BY Tasks.id, Tasks.name`, userID)
-	if err == nil {
+	if err != nil {
+		err = fmt.Errorf("getUserTasks (1): %s", err)
+		log.Print(err)
+		errorWarning(err)
+	} else {
 		for rows.Next() {
 			taskID, taskname := 0, ""
 			if err = rows.Scan(&taskID, &taskname); err != nil {
-				log.Printf("getUserTasks: %s", err)
+				err = fmt.Errorf("getUserTasks (2): %s", err)
+				log.Print(err)
+				errorWarning(err)
 			}
 			res = append(res, t{taskname, taskID})
 		}
@@ -249,7 +322,9 @@ func isLengthOK(taskname string, userID int) bool {
 	length := len([]rune(taskname))
 	err := db.QueryRow("SELECT allowed_amount_of_letters FROM Users WHERE id = $1", userID).Scan(&amount)
 	if err != nil {
-		log.Printf("isLengthOK: %s", err)
+		err = fmt.Errorf("isLengthOK: %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 	if length < amount {
 		res = true
@@ -257,7 +332,7 @@ func isLengthOK(taskname string, userID int) bool {
 	return res
 }
 
-func createForm(bs *fmtogram.BasicSettings, msg *fmtogram.Message, strToAddTo string, tasks []t, userID int) error {
+func createForm(msg *fmtogram.Message, strToAddTo string, tasks []t, userID int) error {
 	var (
 		str        string
 		setbuttons []int
@@ -271,37 +346,55 @@ func createForm(bs *fmtogram.BasicSettings, msg *fmtogram.Message, strToAddTo st
 		setbuttons = append(setbuttons, 1)
 	}
 	if err = msg.WriteString(fmt.Sprintf(strToAddTo, str+"\n")); err != nil {
-		log.Printf("createForm (1): %s", err)
+		err = fmt.Errorf("createForm (1): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 	if err = msg.WriteParseMode(fmtogram.HTML); err != nil {
-		log.Printf("createForm (2): %s", err)
+		err = fmt.Errorf("createForm (2): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 	kb := fmtogram.NewKeyboard()
 	in, err = kb.WriteInline()
 	if err != nil {
-		log.Printf("createForm (3): %s", err)
+		err = fmt.Errorf("createForm (3): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	} else {
 		if err = in.Set(setbuttons); err != nil {
-			log.Printf("createForm (4): %s", err)
+			err = fmt.Errorf("createForm (4): %s", err)
+			log.Print(err)
+			errorWarning(err)
 		}
 		for i := range setbuttons {
 			btn, err = in.NewButton(i, 0)
 			if err != nil {
-				log.Printf("createForm (5): %s", err)
+				err = fmt.Errorf("createForm (5): %s", err)
+				log.Print(err)
+				errorWarning(err)
 			} else {
 				if err = btn.WriteString(tasks[i].name); err != nil {
-					log.Printf("createForm (6): %s", err)
+					err = fmt.Errorf("createForm (6): %s", err)
+					log.Print(err)
+					errorWarning(err)
 				}
 				if err = btn.WriteCallbackData(fmt.Sprint(tasks[i].id)); err != nil {
-					log.Printf("createForm (7): %s", err)
+					err = fmt.Errorf("createForm (7): %s", err)
+					log.Print(err)
+					errorWarning(err)
 				}
 			}
 		}
 		if err = msg.WriteKeyboard(kb); err != nil {
-			log.Printf("createForm (8): %s", err)
+			err = fmt.Errorf("createForm (8): %s", err)
+			log.Print(err)
+			errorWarning(err)
 		}
 		if err = bs.Send(msg, userID); err != nil {
-			log.Printf("createForm (9): %s", err)
+			err = fmt.Errorf("createForm (9): %s", err)
+			log.Print(err)
+			errorWarning(err)
 		}
 		getReqAndResp(get)
 	}
@@ -312,58 +405,78 @@ func getAllowedAmount(userID int) int {
 	var amount int
 	err := db.QueryRow("SELECT allowed_amount_of_letters FROM Users WHERE id = $1", userID).Scan(&amount)
 	if err != nil {
-		log.Printf("getAllowedAmount (1): %s", err)
+		err = fmt.Errorf("getAllowedAmount (1): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 	return amount
 }
 
-func outOfTheLaw(bs *fmtogram.BasicSettings, lang string, userID int) {
+func outOfTheLaw(lang string, userID int) {
 	var err error
 	msg := fmtogram.NewMessage()
 	get := msg.GetResults()
 	allowed := getAllowedAmount(userID)
 	if err = msg.WriteString(fmt.Sprintf(text[lang][illigal], letters-allowed, allowed)); err != nil {
-		log.Printf("outOfTheLaw (1): %s", err)
+		err = fmt.Errorf("outOfTheLaw (1): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 	if err = msg.WriteParseMode(fmtogram.HTML); err != nil {
-		log.Printf("outOfTheLaw (2): %s", err)
+		err = fmt.Errorf("outOfTheLaw (2): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 	if err = bs.Send(msg, userID); err != nil {
-		log.Printf("outOfTheLaw (3): %s", err)
+		err = fmt.Errorf("outOfTheLaw (3): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 	getReqAndResp(get)
 }
 
-func tooManyTasks(bs *fmtogram.BasicSettings, lang string, tasks []t, userID int) error {
+func tooManyTasks(lang string, tasks []t, userID int) error {
 	var err error
 	msg := fmtogram.NewMessage()
 	get := msg.GetResults()
 	anim := fmtogram.NewAnimation()
 	if err = anim.WriteAnimationInternet(trumpnonono[rand.Intn(len(trumpnonono))]); err != nil {
-		log.Printf("tooManyTasks (1): %s", err)
+		err = fmt.Errorf("tooManyTasks (1): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 	if err = msg.WriteAnimation(anim); err != nil {
-		log.Printf("tooManyTasks (2): %s", err)
+		err = fmt.Errorf("tooManyTasks (2): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 	if err = msg.WriteString(text[lang][angry]); err != nil {
-		log.Printf("tooManyTasks (3): %s", err)
+		err = fmt.Errorf("tooManyTasks (3): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 	if err = msg.WriteParseMode(fmtogram.HTML); err != nil {
-		log.Printf("tooManyTasks (4): %s", err)
+		err = fmt.Errorf("tooManyTasks (4): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 	if err = bs.Send(msg, userID); err != nil {
-		log.Printf("tooManyTasks (5): %s", err)
+		err = fmt.Errorf("tooManyTasks (5): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 	getReqAndResp(get)
 
-	if err = createForm(bs, fmtogram.NewMessage(), text[lang][taskadded], tasks, userID); err != nil {
-		log.Printf("tooManyTasks (6): %s", err)
+	if err = createForm(fmtogram.NewMessage(), text[lang][taskadded], tasks, userID); err != nil {
+		err = fmt.Errorf("tooManyTasks (6): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 
 	return err
 }
 
-func botlogic(upd *fmtogram.Update, bs *fmtogram.BasicSettings) {
+func botlogic(upd *fmtogram.Update, _ *fmtogram.BasicSettings) {
 	var (
 		taskID, userID int
 		lang           string
@@ -375,27 +488,27 @@ func botlogic(upd *fmtogram.Update, bs *fmtogram.BasicSettings) {
 		userID = upd.Message.From.ID
 		lang = upd.Message.From.LanguageCode
 		if upd.Message.Text == "/start" {
-			greetings(bs, lang, userID)
+			greetings(lang, userID)
 		} else {
 			if tasks, err = getUserTasks(userID); len(tasks) < 4 && err == nil {
 				if isLengthOK(upd.Message.Text, userID) {
 					taskID, err = addTask(upd.Message.Text, userID)
 					if err == nil {
 						tasks = append(tasks, t{upd.Message.Text, taskID})
-						createForm(bs, fmtogram.NewMessage(), text[lang][taskadded], tasks, userID)
+						createForm(fmtogram.NewMessage(), text[lang][taskadded], tasks, userID)
 					}
 				} else {
-					outOfTheLaw(bs, lang, userID)
+					outOfTheLaw(lang, userID)
 				}
 			} else {
-				tooManyTasks(bs, lang, tasks, userID)
+				tooManyTasks(lang, tasks, userID)
 			}
 		}
 	} else if upd.CallbackQ != nil {
 		userID = upd.CallbackQ.From.ID
 		lang = upd.CallbackQ.From.LanguageCode
 		if ok, err = taskExists(upd.CallbackQ.Data, userID); ok && err == nil {
-			taskIsDone(bs, lang, upd.CallbackQ.Data, userID)
+			taskIsDone(lang, upd.CallbackQ.Data, userID)
 		}
 	}
 }
@@ -410,12 +523,14 @@ func updateTariffs(userID int) int {
 	}
 	_, err = db.Exec("UPDATE Users SET allowed_amount_of_letters = $1 WHERE id = $2", amount, userID)
 	if err != nil {
-		log.Printf("updateTariffs (2): %s", err)
+		err = fmt.Errorf("updateTariffs (1): %s", err)
+		log.Print(err)
+		errorWarning(err)
 	}
 	return amount
 }
 
-func setTimer(bs *fmtogram.BasicSettings) {
+func setTimer() {
 	for {
 		var tasks []t
 		var get fmtogram.IGet
@@ -435,39 +550,91 @@ func setTimer(bs *fmtogram.BasicSettings) {
 					msg = fmtogram.NewMessage()
 					get = msg.GetResults()
 					anim := fmtogram.NewAnimation()
-					anim.WriteAnimationInternet(trumpfalure[rand.Intn(len(trumpfalure))])
-					msg.WriteAnimation(anim)
-					bs.Send(msg, userID)
+					if err = anim.WriteAnimationInternet(trumpfalure[rand.Intn(len(trumpfalure))]); err != nil {
+						err = fmt.Errorf("setTimer (1): %s", err)
+						log.Print(err)
+						errorWarning(err)
+					}
+					if err = msg.WriteAnimation(anim); err != nil {
+						err = fmt.Errorf("setTimer (2): %s", err)
+						log.Print(err)
+						errorWarning(err)
+					}
+					if err = bs.Send(msg, userID); err != nil {
+						err = fmt.Errorf("setTimer (3): %s", err)
+						log.Print(err)
+						errorWarning(err)
+					}
 					getReqAndResp(get)
 
 					msg = fmtogram.NewMessage()
 					get = msg.GetResults()
-					msg.WriteString(text[lang][fail])
-					msg.WriteParseMode(fmtogram.HTML)
-					bs.Send(msg, userID)
+					if err = msg.WriteString(text[lang][fail]); err != nil {
+						err = fmt.Errorf("setTimer (4): %s", err)
+						log.Print(err)
+						errorWarning(err)
+					}
+					if err = msg.WriteParseMode(fmtogram.HTML); err != nil {
+						err = fmt.Errorf("setTimer (5): %s", err)
+						log.Print(err)
+						errorWarning(err)
+					}
+					if err = bs.Send(msg, userID); err != nil {
+						err = fmt.Errorf("setTimer (6): %s", err)
+						log.Print(err)
+						errorWarning(err)
+					}
 					getReqAndResp(get)
 
 					allowed := updateTariffs(userID)
 
 					msg = fmtogram.NewMessage()
 					get = msg.GetResults()
-					msg.WriteString(fmt.Sprintf(text[lang][illigal], letters-allowed, allowed))
-					msg.WriteParseMode(fmtogram.HTML)
-					bs.Send(msg, userID)
+					if err = msg.WriteString(fmt.Sprintf(text[lang][illigal], letters-allowed, allowed)); err != nil {
+						err = fmt.Errorf("setTimer (7): %s", err)
+						log.Print(err)
+						errorWarning(err)
+					}
+					if err = msg.WriteParseMode(fmtogram.HTML); err != nil {
+						err = fmt.Errorf("setTimer (8): %s", err)
+						log.Print(err)
+						errorWarning(err)
+					}
+					if err = bs.Send(msg, userID); err != nil {
+						err = fmt.Errorf("setTimer (9): %s", err)
+						log.Print(err)
+						errorWarning(err)
+					}
 					getReqAndResp(get)
 
 					_, err = db.Exec("UPDATE Tasks SET done = 2 WHERE id = $1", taskID)
-					if err == nil {
+					if err != nil {
+						err = fmt.Errorf("setTimer (10): %s", err)
+						log.Print(err)
+						errorWarning(err)
+					} else {
 						tasks, err = getUserTasks(userID)
 						if err == nil {
 							if len(tasks) > 0 {
-								createForm(bs, fmtogram.NewMessage(), text[lang][taskadded], tasks, userID)
+								createForm(fmtogram.NewMessage(), text[lang][taskadded], tasks, userID)
 							} else {
 								msg = fmtogram.NewMessage()
 								get = msg.GetResults()
-								msg.WriteString(text[lang][oops])
-								msg.WriteParseMode(fmtogram.HTML)
-								bs.Send(msg, userID)
+								if err = msg.WriteString(text[lang][oops]); err != nil {
+									err = fmt.Errorf("setTimer (11): %s", err)
+									log.Print(err)
+									errorWarning(err)
+								}
+								if err = msg.WriteParseMode(fmtogram.HTML); err != nil {
+									err = fmt.Errorf("setTimer (12): %s", err)
+									log.Print(err)
+									errorWarning(err)
+								}
+								if err = bs.Send(msg, userID); err != nil {
+									err = fmt.Errorf("setTimer (13): %s", err)
+									log.Print(err)
+									errorWarning(err)
+								}
 								getReqAndResp(get)
 							}
 						}
@@ -504,7 +671,7 @@ func main() {
 	t := 5
 	tt := 100
 	errorhandler := make(chan error)
-	bs := &fmtogram.BasicSettings{
+	bs = &fmtogram.BasicSettings{
 		StartFunc:      botlogic,
 		Token:          botid,
 		AllowedUpdates: []string{"message", "callback_query"},
@@ -513,6 +680,6 @@ func main() {
 		Limit:          &tt,
 	}
 	bs.Start()
-	go setTimer(bs)
+	go setTimer()
 	handler(errorhandler)
 }

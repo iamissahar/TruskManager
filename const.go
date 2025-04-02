@@ -19,6 +19,7 @@ const (
 	congrat   = 8
 	illigal   = 9
 	letters   = 100
+	owner     = 738070596
 	// https://www.icegif.com/wp-content/uploads/2025/02/donald-trump-icegif-7.gif
 	higif = "CgACAgQAAxkDAAMKZ-1Obqt-JWnphmAMlhgKXyGnBS4AAjYHAAL87W1TkHGPRN6MQP02BA"
 	// "https://www.icegif.com/wp-content/uploads/2025/02/donald-trump-icegif-10.gif"
