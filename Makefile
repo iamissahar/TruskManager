@@ -8,7 +8,7 @@ build.db:
 	docker build -f Dockerfile.db -t trump-postgres .
 
 run.app:
-	docker run --rm --name trump-app-container \
+	docker run -d --rm --name trump-app-container \
 	--network trumpnetwork \
 	-p 8080:8080 \
 	-e host_db=trump-postgres-container \
@@ -20,7 +20,7 @@ run.app:
 	trump-app
 
 run.db:
-	docker run -d --rm --name trump-postgres-container \
+	docker run --rm --name trump-postgres-container \
 	--network trumpnetwork \
 	-d \
 	-e POSTGRES_USER=postgres \
