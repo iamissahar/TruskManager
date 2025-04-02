@@ -55,7 +55,7 @@ reboot:
 	docker stop trump-app-container
 	docker rm trump-app-container
 	docker build -f Dockerfile.app -t trump-app .
-	docker run --name trump-app-container \
+	docker run -d --name trump-app-container \
 	--network trumpnetwork \
 	-p 8080:8080 \
 	-e host_db=trump-postgres-container \
