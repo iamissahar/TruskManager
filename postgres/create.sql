@@ -1,0 +1,18 @@
+CREATE TABLE Users (
+    id INT PRIMARY KEY,
+    lang VARCHAR(256) DEFAULT '' NOT NULL,
+    allowed_amount_of_letters INT DEFAULT 100 NOT NULL
+);
+
+CREATE TABLE Tasks (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(256) DEFAULT '' NOT NULL,
+    done INT DEFAULT 0 NOT NULL,
+    start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE Relations (
+    task_id INT REFERENCES Tasks(id) ON DELETE CASCADE,
+    user_id INT REFERENCES Users(id) ON DELETE CASCADE,
+    PRIMARY KEY (task_id, user_id)
+);
